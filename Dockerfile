@@ -88,7 +88,6 @@ COPY --chown=cadence:cadence docker/start-cadence.sh /start-cadence.sh
 
 # Separate read-only configs from writable runtime config directory
 COPY --chown=cadence:cadence config/dynamicconfig /etc/cadence/dynamicconfig
-COPY --chown=cadence:cadence config/credentials /etc/cadence/credentials
 COPY --chown=cadence:cadence docker/config_template.yaml /etc/cadence/config_template.yaml
 
 # Create writable config directory for runtime-generated files

@@ -43,13 +43,36 @@ jobs:
             echo "enabled=true" >> $GITHUB_OUTPUT
           fi
 
-  push_server_image:
-    name: Push server image to Docker Hub
+  validate_secret_checker:
+    name: Validate Docker image secret checker
     needs: meta
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Verify layered private keys are detected
+        run: |
+          docker build --tag cadence/private-key-layer-fixture - <<'EOF'
+          FROM alpine:3.24
+          RUN printf '%s\n' '-----BEGIN PRIVATE KEY-----' > /private-key.pem
+          RUN rm /private-key.pem
+          EOF
+          if scripts/check-docker-image-secrets.sh cadence/private-key-layer-fixture; then
+            echo "Layered private-key fixture was not detected" >&2
+            exit 1
+          fi
+
+  push_server_image:
+    name: Push server image to Docker Hub
+    needs: [meta, validate_secret_checker]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Validate image contains no private keys
+        run: |
+          docker build --build-arg TARGET=server --tag cadence/server:secret-check .
+          scripts/check-docker-image-secrets.sh cadence/server:secret-check
       - name: Login to Docker Hub
         if: ${{ needs.meta.outputs.push_enabled == 'true' }}
         uses: docker/login-action@v3
@@ -74,11 +97,15 @@ jobs:
 
   push_server_auto_setup_image:
     name: Push auto-setup image to Docker Hub
-    needs: meta
+    needs: [meta, validate_secret_checker]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Validate image contains no private keys
+        run: |
+          docker build --build-arg TARGET=auto-setup --tag cadence/server:secret-check-auto-setup .
+          scripts/check-docker-image-secrets.sh cadence/server:secret-check-auto-setup
       - name: Login to Docker Hub
         if: ${{ needs.meta.outputs.push_enabled == 'true' }}
         uses: docker/login-action@v3
